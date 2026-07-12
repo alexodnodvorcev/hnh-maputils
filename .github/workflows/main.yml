@@ -16,6 +16,7 @@ jobs:
     
     - name: Set up environment
       run: |
+        pip install pytest --break-system-packages
         pip install -e . --break-system-packages
     
     - name: Run tests
