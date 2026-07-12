@@ -58,6 +58,7 @@ class Read:
         if t == T_INT16: return self.i16()
         if t == T_INT: return self.i32()
         if t == T_LONG: return self.i64()
+        if t == 72: return self.i64()
         if t == T_STR: return self.str()
         if t == T_COORD: return {"__coord__": [self.i32(), self.i32()]}
         if t == T_COLOR: return {"__color__": [self.u8(), self.u8(), self.u8(), self.u8()]}
