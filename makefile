@@ -16,7 +16,8 @@ test-long: example.hmap
 	@diff example.hmap long_test.hmap > /dev/null && echo "test passed" || (echo "test failed"; exit 1)
 	@rm -f long_test.json long_test.hmap
 
-test: test-convert test-long
+test:
+	pytest
 
 clean:
 	rm -f test.json example.hmap long_test.json long_test.hmap

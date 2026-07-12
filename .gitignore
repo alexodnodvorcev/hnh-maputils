@@ -1,0 +1,5 @@
+__pycache__
+*.egg-info
+/src/hnh_maputils.egg-info/PKG-INFO
+/src/hnh_maputils.egg-info/SOURCES.txt
+/src/hnh_maputils.egg-info/top_level.txt

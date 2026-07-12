@@ -1,0 +1,23 @@
+name: main
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up environment
+      run: |
+        pip install pytest --break-system-packages
+        pip install -e . --break-system-packages
+    
+    - name: Run tests
+      run: make test
