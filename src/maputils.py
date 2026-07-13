@@ -453,8 +453,21 @@ def merge_hmaps(hmap_path1, hmap_path2, output_path=None, deduplicate=True):
         }
         
         if output_path:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump({"stats": stats, "entries": result}, f, indent=2, ensure_ascii=False)
+            zout = bytearray()
+            for entry in result:
+                type_name = entry["type"]
+                record_data = bytes.fromhex(entry.get("data_hex", ""))
+                zout.extend(type_name.encode('utf-8'))
+                zout.append(0)
+                zout.extend(struct.pack('<I', len(record_data)))
+                zout.extend(record_data)
+            
+            out = bytearray(b'Haven Mapfile 1')
+            compressed = zlib.compress(bytes(zout), 9)
+            out.extend(compressed)
+            
+            with open(output_path, 'wb') as f:
+                f.write(out)
             return None
         
         return {"stats": stats, "entries": result}
