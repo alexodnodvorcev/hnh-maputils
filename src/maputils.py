@@ -391,6 +391,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument('-hmap2json', metavar='INPUT')
     p.add_argument('-json2hmap', metavar='INPUT')
+    p.add_argument('-merge', nargs=2, metavar=('INPUT1', 'INPUT2'))
     p.add_argument('-o', '--output')
     args = p.parse_args()
     
@@ -404,8 +405,64 @@ def main():
         if not args.output:
             sys.stdout.buffer.write(r)
             
+    elif args.merge:
+        r = merge_hmaps(args.merge[0], args.merge[1], args.output)
+        if not args.output:
+            print(json.dumps(r, indent=2, ensure_ascii=False))
+            
     else:
         p.print_help()
+
+
+def merge_hmaps(hmap_path1, hmap_path2, output_path=None, deduplicate=True):
+    try:
+        data1 = hmap_to_json(hmap_path1)
+        if data1 is None:
+            return None
+            
+        data2 = hmap_to_json(hmap_path2)
+        if data2 is None:
+            return None
+        
+        if deduplicate:
+            seen = set()
+            result = []
+            
+            for entry in list(data1) + list(data2):
+                if entry["type"] == "grid":
+                    key = ("grid", entry.get("id", ""))
+                elif entry["type"] == "mark":
+                    tc = entry.get("tc", {})
+                    key = ("mark", entry.get("seg", ""), 
+                           tc.get("coord", [0, 0])[0], 
+                           tc.get("coord", [0, 0])[1])
+                else:
+                    key = (entry["type"], entry.get("data_hex", ""))
+                
+                if key not in seen:
+                    seen.add(key)
+                    result.append(entry)
+        else:
+            result = list(data1) + list(data2)
+        
+        stats = {
+            "map1_entries": len(data1),
+            "map2_entries": len(data2),
+            "total_entries": len(result),
+            "removed_duplicates": len(list(data1)) + len(list(data2)) - len(result)
+        }
+        
+        if output_path:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump({"stats": stats, "entries": result}, f, indent=2, ensure_ascii=False)
+            return None
+        
+        return {"stats": stats, "entries": result}
+        
+    except Exception as e:
+        print(f"Error merging hmaps: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
