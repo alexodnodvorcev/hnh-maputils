@@ -478,5 +478,141 @@ def merge_hmaps(hmap_path1, hmap_path2, output_path=None, deduplicate=True):
         sys.exit(1)
 
 
+def hmap_to_image(hmap_path, output_path=None):
+    if Image is None:
+        print("PIL/Pillow is not installed. Install with: pip install Pillow", file=sys.stderr)
+        sys.exit(1)
+    
+    try:
+        with open(hmap_path, 'rb') as f:
+            data = f.read()
+            
+        if data.startswith(b'Haven Mapfile'):
+            zlib_start = 15
+            try:
+                data = zlib.decompress(data[zlib_start:])
+            except zlib.error:
+                data = zlib.decompress(data[zlib_start:], -15)
+                
+        pos = 0
+        all_tiles = []
+        grid_coords = []
+        
+        while pos < len(data):
+            type_name, pos = read_c_string(data, pos)
+            if pos >= len(data) or not type_name:
+                break
+            if pos + 4 > len(data):
+                break
+            length = struct.unpack('<I', data[pos:pos+4])[0]
+            pos += 4
+            entry_data = data[pos:pos+length]
+            pos += length
+            
+            if type_name == "grid":
+                r = ZRead(entry_data)
+                ver = r.u8()
+                r.i64() 
+                r.i64()  
+                if ver >= 2:
+                    r.i64()
+                sc = r.coord()
+                ntiles = r.i32()
+                
+                ntilesets = r.u16() if ver >= 2 else r.u8()
+                
+                for _ in range(ntilesets):
+                    r.str()
+                    r.u16()
+                    r.u8()
+                
+                if ntilesets <= 256:
+                    tiles = [r.u8() for _ in range(ntiles)]
+                else:
+                    tiles = [r.u16() for _ in range(ntiles)]
+                
+                all_tiles.append(tiles)
+                grid_coords.append(sc["coord"])
+        
+        if not all_tiles:
+            print("No grid data found in hmap file", file=sys.stderr)
+            return None
+        
+        total_tiles = sum(len(t) for t in all_tiles)
+        
+        size = int(math.sqrt(total_tiles))
+        if size * size != total_tiles:
+            size_w = size
+            size_h = size + 1
+            if size_w * size_h != total_tiles:
+                for w in range(1, int(math.sqrt(total_tiles)) + 2):
+                    if total_tiles % w == 0:
+                        size_w = w
+                        size_h = total_tiles // w
+                        break
+                size = (size_w, size_h)
+            else:
+                size = (size_w, size_h)
+        
+        unique_sizes = set(len(t) for t in all_tiles)
+        if len(unique_sizes) == 1 and len(all_tiles) > 1:
+            tile_size = int(math.sqrt(len(all_tiles[0])))
+            grid_count = len(all_tiles)
+            grid_cols = int(math.ceil(math.sqrt(grid_count)))
+            grid_rows = (grid_count + grid_cols - 1) // grid_cols
+            
+            img_width = tile_size * grid_cols
+            img_height = tile_size * grid_rows
+            
+            img = Image.new('RGB', (img_width, img_height))
+            
+            for idx, tiles in enumerate(all_tiles):
+                col = idx % grid_cols
+                row = idx // grid_cols
+                
+                for i, tile_idx in enumerate(tiles):
+                    x = i % tile_size
+                    y = i // tile_size
+                    px = col * tile_size + x
+                    py = row * tile_size + y
+                    
+                    r = (tile_idx * 7) % 256
+                    g = (tile_idx * 13) % 256
+                    b = (tile_idx * 31) % 256
+                    img.putpixel((px, py), (r, g, b))
+        else:
+            flat_tiles = []
+            for tiles in all_tiles:
+                flat_tiles.extend(tiles)
+            
+            if isinstance(size, tuple):
+                img_width, img_height = size
+            else:
+                img_width = img_height = size
+            
+            img = Image.new('RGB', (img_width, img_height))
+            pixels = []
+            
+            for tile_idx in flat_tiles:
+                r = (tile_idx * 7) % 256
+                g = (tile_idx * 13) % 256
+                b = (tile_idx * 31) % 256
+                pixels.append((r, g, b))
+            
+            img.putdata(pixels)
+        
+        if output_path:
+            output_path = os.path.abspath(output_path)
+            img.save(output_path)
+            return None
+        
+        return img
+        
+    except Exception as e:
+        print(f"Error converting hmap to image: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     main()
